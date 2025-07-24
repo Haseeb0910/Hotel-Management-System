@@ -1,5 +1,6 @@
 #include"room.h"
 #include<iostream>
+#include<iomanip>
 #include<sstream>
 using namespace std;
 
@@ -9,7 +10,7 @@ Room::Room(int num , string t , double price) : room_no(num) , type(t) , availab
 
 void Room::display_RoomInfo() const
 {
-    cout << "Room number: " << room_no << endl << "Type: " << type << endl << "Price Per Night: " << price_per_night << endl << (availability ? "Yes" : "No") << endl;
+    cout << "Room number: " << room_no << endl << "Type: " << type << endl << "Price Per Night: " <<fixed<<setprecision(2)<< price_per_night << endl << (availability ? "Yes" : "No") << endl;
 }
 
 void Room::setAvailibility(bool status) 
