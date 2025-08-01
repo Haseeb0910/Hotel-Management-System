@@ -26,6 +26,9 @@ public:
 
     string toCSV() const;
     void fromCSV(const string& line);
+
+    void write_to_file(ofstream& out) const;
+    void read_from_file(ifstream& in);
 };
 
 #endif

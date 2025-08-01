@@ -15,13 +15,17 @@ class Room
     Room();
     Room(int num , string t , double price);
     void display_RoomInfo() const;
-    void setAvailibility(bool status);
-    bool getAvailibility() const;
+    void setAvailability(bool status);
+    bool getAvailability() const;
     int getRoomNumber() const;
     void setPrice(double p);
     double getPrice() const;
+
     string toCSV() const;
     void fromCSV(const string& line);
+
+    void write_to_file(ofstream& out) const;
+    void read_from_file(ifstream& in);
 };
 
 #endif

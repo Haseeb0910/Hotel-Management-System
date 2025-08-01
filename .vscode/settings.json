@@ -3,6 +3,7 @@
         "memory_resource": "cpp",
         "random": "cpp",
         "memory": "cpp",
-        "type_traits": "cpp"
+        "type_traits": "cpp",
+        "new": "cpp"
     }
 }

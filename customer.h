@@ -19,8 +19,13 @@ class Customer
     string getCnic() const;
     string getPhone() const;
 
+    static bool isValidCNIC(const string& cnic);
+
     string toCSV() const;
     void fromCSV(const string& line);
+
+    void write_to_file(ofstream& out) const;
+    void read_from_file(ifstream& in);
 };
 
 #endif

@@ -7,7 +7,8 @@
 #include "booking.h"
 using namespace std;
 
-class Hotel {
+class Hotel
+{
 private:
     vector<Room> rooms;
     vector<Customer> customers;
@@ -17,15 +18,22 @@ private:
 public:
     Hotel();
 
-    void addRoom(const Room& room);
-    void addCustomer(const Customer& customer);
-    void bookRoom(int roomNumber, const string& customerCNIC, const string& checkIn, const string& checkOut);
+    void addRoom(const Room &room);
+    void addCustomer(const Customer &customer);
+    void bookRoom(int roomNumber, const string &customerCNIC, const string &checkIn, const string &checkOut);
 
     void showAllRooms() const;
     void showAllCustomers() const;
     void showAllBookings() const;
 
-    void loadSampleData();
+    bool roomExists(int roomNum) const;
+    bool customerExists(const string &cnic) const;
+    bool isRoomAvailable(int roomNum) const;
+
+    void cancelBooking(int bookingID);
+
+    void saveData();
+    void loadData();
 };
 
 #endif
