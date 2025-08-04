@@ -5,21 +5,54 @@
 
 using namespace std;
 
+void Hotel::validateDataConsistency()
+{
+    // Check for orphaned bookings (no matching customer or room)
+    for (const auto &booking : bookings)
+    {
+        if (!customerExists(booking.getCustomerCNIC()))
+        {
+            throw runtime_error("Data corruption: Booking " + to_string(booking.getBookingID()) +
+                                " references non-existent customer");
+        }
+
+        if (!roomExists(booking.getRoomNumber()))
+        {
+            throw runtime_error("Data corruption: Booking " + to_string(booking.getBookingID()) +
+                                " references non-existent room");
+        }
+    }
+
+    // Check room availability flags match booking status
+    for (const auto &room : rooms)
+    {
+        bool shouldBeAvailable = !hasBookingOverlap(room.getRoomNumber(), Date(), Date::maxDate());
+        if (room.getAvailability() != shouldBeAvailable)
+        {
+            throw runtime_error("Data corruption: Room " + to_string(room.getRoomNumber()) +
+                                " availability flag is incorrect");
+        }
+    }
+}
+
 Hotel::Hotel() : nextBookingID(1) {}
 
-void Hotel::addRoom(const Room &room)
+void Hotel::addRoom(int num, RoomType type, double price)
 {
-    for (Room &r : rooms)
+    // Check if room number already exists
+    for (const Room &r : rooms)
     {
-        if (r.getRoomNumber() == room.getRoomNumber())
+        if (r.getRoomNumber() == num)
         {
             cout << "Room number already exists. Cannot add again." << endl;
             return;
         }
     }
-    rooms.push_back(room);
+
+    // Add the new room
+    rooms.emplace_back(num, type, price);
     saveData();
-    cout << "Room added successfully" << endl;
+    cout << "Room added successfully!" << endl;
 }
 
 void Hotel::addCustomer(const Customer &customer)
@@ -42,13 +75,15 @@ void Hotel::addCustomer(const Customer &customer)
     cout << "Customer added successfully" << endl;
 }
 
-void Hotel::bookRoom(int roomNumber, const string &customerCNIC, const string &checkIn, const string &checkOut)
+void Hotel::bookRoom(int roomNumber, const string &customerCNIC, const Date &checkIn, const Date &checkOut)
 {
-    if (!Customer::isValidCNIC(customerCNIC))
+    // Basic validation
+    if (checkIn >= checkOut)
     {
-        cout << "Invalid CNIC format! Must be 13 digits." << endl;
+        cout << "Check-out date must be after check-in date.\n";
         return;
     }
+
     // Check room exists and is available
     Room *roomPtr = nullptr;
     for (Room &r : rooms)
@@ -59,46 +94,52 @@ void Hotel::bookRoom(int roomNumber, const string &customerCNIC, const string &c
             break;
         }
     }
+
     if (!roomPtr)
     {
         cout << "Room not found." << endl;
         return;
     }
-    if (!roomPtr->getAvailability())
-    {
-        cout << "Room is not available for booking." << endl;
-        return;
-    }
 
-    // Check customer exists
-    bool found = false;
-    for (Customer &c : customers)
+    // Check for booking conflicts
+    for (const Booking &booking : bookings)
     {
-        if (c.getCnic() == customerCNIC)
+        if (booking.getRoomNumber() == roomNumber)
         {
-            found = true;
-            break;
+            if (!(checkOut <= booking.getCheckInDate() || checkIn >= booking.getCheckOutDate()))
+            {
+                cout << "Room is already booked for those dates." << endl;
+                cout << "Conflict with booking ID: " << booking.getBookingID() << endl;
+                cout << "Existing booking: " << booking.getCheckInDate().toString() << " to " << booking.getCheckOutDate().toString() << endl;
+                return;
+            }
         }
     }
-    if (!found)
-    {
-        cout << "Customer not found. Please register customer first." << endl;
-        return;
-    }
 
-    // Date format
-    if (checkIn.length() != 10 || checkIn[2] != '/' || checkIn[5] != '/' ||
-        checkOut.length() != 10 || checkOut[2] != '/' || checkOut[5] != '/')
-    {
-        cout << "Please enter date in format DD/MM/YYYY.\n";
-        return;
-    }
-
-    // Add booking
+    // Create new booking
     bookings.emplace_back(nextBookingID++, roomNumber, customerCNIC, checkIn, checkOut);
     roomPtr->setAvailability(false);
+    cout << "Room booked successfully. Booking ID: " << (nextBookingID - 1) << endl;
     saveData();
-    cout << "Room booked successfully.\n";
+}
+
+bool Hotel::hasBookingOverlap(int roomNumber, const Date &checkIn, const Date &checkOut) const
+{
+    for (const auto &booking : bookings)
+    {
+        if (booking.getRoomNumber() == roomNumber)
+        {
+            bool startsDuring = (checkIn >= booking.getCheckInDate() && checkIn < booking.getCheckOutDate());
+            bool endsDuring = (checkOut > booking.getCheckInDate() && checkOut <= booking.getCheckOutDate());
+            bool spansBooking = (checkIn <= booking.getCheckInDate() && checkOut >= booking.getCheckOutDate());
+
+            if (startsDuring || endsDuring || spansBooking)
+            {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 void Hotel::showAllRooms() const
@@ -175,7 +216,10 @@ bool Hotel::isRoomAvailable(int roomNum) const
     for (const Room &r : rooms)
     {
         if (r.getRoomNumber() == roomNum)
-            return r.getAvailability();
+        {
+            // Check if there are any overlapping bookings
+            return !hasBookingOverlap(roomNum, Date(), Date::maxDate());
+        }
     }
     return false;
 }
@@ -215,85 +259,136 @@ void Hotel::cancelBooking(int bookingID)
     saveData();
 }
 
+vector<Room> Hotel::findAvailableRooms(RoomType type) const
+{
+    vector<Room> result;
+    copy_if(rooms.begin(), rooms.end(), back_inserter(result),
+            [type](const Room &r)
+            {
+                return r.getAvailability() && r.getType() == type;
+            });
+    return result;
+}
+
+vector<Customer> Hotel::findCustomersByName(const string &name) const
+{
+    vector<Customer> result;
+    copy_if(customers.begin(), customers.end(), back_inserter(result),
+            [&name](const Customer &c)
+            {
+                return c.getName().find(name) != string::npos;
+            });
+    return result;
+}
+
 void Hotel::saveData()
 {
-    // save Rooms
-    ofstream room_out("Rooms.dat", ios::binary);
-    if (!room_out)
+    auto saveVector = [](const auto &vec, const string &filename)
     {
-        cerr << "Failed to open Rooms.dat for writing\n";
-        return;
+        ofstream out(filename, ios::binary);
+        if (!out)
+        {
+            throw runtime_error("Failed to open " + filename + " for writing");
+        }
+        size_t count = vec.size();
+        out.write(reinterpret_cast<char *>(&count), sizeof(count));
+        for (const auto &item : vec)
+        {
+            item.write_to_file(out);
+        }
+        if (!out)
+        {
+            throw runtime_error("Error writing to " + filename);
+        }
+    };
+
+    try
+    {
+        saveVector(rooms, "Rooms.dat");
+        saveVector(customers, "Customers.dat");
+        saveVector(bookings, "Bookings.dat");
     }
-    size_t roomCount = rooms.size();
-    room_out.write(reinterpret_cast<char *>(&roomCount), sizeof(roomCount));
-    for (int i = 0; i < roomCount; i++)
-        rooms[i].write_to_file(room_out);
-    room_out.close();
-
-    // save Customers
-    ofstream customer_out("Customers.dat", ios::binary);
-    size_t customerCount = customers.size();
-    customer_out.write(reinterpret_cast<char *>(&customerCount), sizeof(customerCount));
-    for (int i = 0; i < customerCount; i++)
-        customers[i].write_to_file(customer_out);
-    customer_out.close();
-
-    // save Bookings
-    ofstream booking_out("Bookings.dat", ios::binary);
-    size_t bookingCount = bookings.size();
-    booking_out.write(reinterpret_cast<char *>(&bookingCount), sizeof(bookingCount));
-    for (int i = 0; i < bookingCount; i++)
-        bookings[i].write_to_file(booking_out);
-    booking_out.close();
+    catch (const exception &e)
+    {
+        cerr << "Error saving data: " << e.what() << endl;
+    }
 }
 
 void Hotel::loadData()
 {
-    // load rooms
-    ifstream room_in("Rooms.dat", ios::binary);
-    if (room_in)
+    // Lambda function to safely load a vector of items
+    auto loadVector = [](auto &vec, const string &filename, auto creator)
     {
-        size_t roomCount;
-        room_in.read(reinterpret_cast<char *>(&roomCount), sizeof(roomCount));
-        rooms.clear();
-        for (int i = 0; i < roomCount; i++)
+        ifstream in(filename, ios::binary);
+        if (!in)
         {
-            Room r;
-            r.read_from_file(room_in);
-            rooms.push_back(r);
+            if (!in.eof())
+            { // Only warn if file exists but couldn't be opened
+                cerr << "Warning: Could not open " << filename << " for reading" << endl;
+            }
+            return;
         }
-        room_in.close();
-    }
 
-    // load customers
-    ifstream customer_in("Customers.dat", ios::binary);
-    if (customer_in)
-    {
-        size_t customerCount;
-        customer_in.read(reinterpret_cast<char *>(&customerCount), sizeof(customerCount));
-        customers.clear();
-        for (int i = 0; i < customerCount; i++)
+        try
         {
-            Customer c;
-            c.read_from_file(customer_in);
-            customers.push_back(c);
-        }
-        customer_in.close();
-    }
+            // Read item count
+            size_t count;
+            in.read(reinterpret_cast<char *>(&count), sizeof(count));
 
-    // load bookings
-    ifstream booking_in("Bookings.dat", ios::binary);
-    if (booking_in)
-    {
-        size_t bookingCount;
-        booking_in.read(reinterpret_cast<char *>(&bookingCount), sizeof(bookingCount));
-        bookings.clear();
-        for (int i = 0; i < bookingCount; i++)
-        {
-            Booking b;
-            b.read_from_file(booking_in);
-            bookings.push_back(b);
+            // Prevent memory exhaustion attack
+            const size_t MAX_ITEMS = 10000;
+            if (count > MAX_ITEMS)
+            {
+                throw runtime_error("Suspicious item count in " + filename);
+            }
+
+            vec.clear();
+            vec.reserve(count);
+
+            // Read each item
+            for (size_t i = 0; i < count; i++)
+            {
+                auto item = creator();
+                item.read_from_file(in);
+
+                // Verify read was successful
+                if (!in)
+                {
+                    throw runtime_error("Failed to read item from " + filename);
+                }
+
+                vec.push_back(move(item));
+            }
+
+            // Verify we read exactly the expected number of bytes
+            if (in.peek() != EOF)
+            {
+                throw runtime_error("Extra data found in " + filename);
+            }
         }
+        catch (const exception &e)
+        {
+            cerr << "Error loading " << filename << ": " << e.what() << endl;
+            vec.clear(); // Ensure empty state on failure
+            throw;       // Re-throw to allow handling at higher level
+        }
+    };
+
+    try
+    {
+        // Load rooms
+        loadVector(rooms, "Rooms.dat", []
+                   { return Room(); });
+
+        // Load customers
+        loadVector(customers, "Customers.dat", []
+                   { return Customer(); });
+
+        // Load bookings with special ID handling
+        loadVector(bookings, "Bookings.dat", []
+                   { return Booking(); });
+
+        // Set nextBookingID
         if (!bookings.empty())
         {
             nextBookingID = max_element(bookings.begin(), bookings.end(),
@@ -308,6 +403,24 @@ void Hotel::loadData()
         {
             nextBookingID = 1;
         }
-        booking_in.close();
+
+        // Reconcile room availability
+        for (auto &room : rooms)
+        {
+            bool isBooked = any_of(bookings.begin(), bookings.end(),
+                                   [&room](const Booking &b)
+                                   {
+                                       return b.getRoomNumber() == room.getRoomNumber();
+                                   });
+            room.setAvailability(!isBooked);
+        }
+    }
+    catch (...)
+    {
+        rooms.clear();
+        customers.clear();
+        bookings.clear();
+        nextBookingID = 1;
+        throw;
     }
 }

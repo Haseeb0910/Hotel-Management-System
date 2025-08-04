@@ -4,22 +4,27 @@
 #include<string>
 using namespace std;
 
+enum class RoomType { STANDARD, DELUXE, SUITE, FAMILY };
+
 class Room
 {
     private:
     int room_no;
-    string type;
+    RoomType type;
     bool availability;
     double price_per_night;
     public:
     Room();
-    Room(int num , string t , double price);
+    Room(int num ,RoomType t , double price);
+    RoomType getType() const {return type;}
     void display_RoomInfo() const;
     void setAvailability(bool status);
     bool getAvailability() const;
     int getRoomNumber() const;
     void setPrice(double p);
     double getPrice() const;
+    string getTypeString() const;
+    RoomType stringToType(const string &typeStr);
 
     string toCSV() const;
     void fromCSV(const string& line);
