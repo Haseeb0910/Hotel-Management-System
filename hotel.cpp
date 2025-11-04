@@ -5,32 +5,41 @@
 
 using namespace std;
 
+// ADD this method to hotel.cpp (in the private section):
+
 void Hotel::validateDataConsistency()
 {
-    // Check for orphaned bookings (no matching customer or room)
-    for (const auto &booking : bookings)
+    // Remove orphaned bookings (where customer or room doesn't exist)
+    auto it = bookings.begin();
+    while (it != bookings.end())
     {
-        if (!customerExists(booking.getCustomerCNIC()))
+        if (!customerExists(it->getCustomerCNIC()) || !roomExists(it->getRoomNumber()))
         {
-            throw runtime_error("Data corruption: Booking " + to_string(booking.getBookingID()) +
-                                " references non-existent customer");
+            cout << "Warning: Removing orphaned booking ID " << it->getBookingID() << endl;
+            it = bookings.erase(it);
         }
-
-        if (!roomExists(booking.getRoomNumber()))
+        else
         {
-            throw runtime_error("Data corruption: Booking " + to_string(booking.getBookingID()) +
-                                " references non-existent room");
+            ++it;
         }
     }
 
-    // Check room availability flags match booking status
-    for (const auto &room : rooms)
+    // Sync room availability flags with actual bookings
+    Date today = Date::currentDate();
+    for (auto &room : rooms)
     {
-        bool shouldBeAvailable = !hasBookingOverlap(room.getRoomNumber(), Date(), Date::maxDate());
+        bool shouldBeAvailable = !any_of(bookings.begin(), bookings.end(),
+                                         [&room, today](const Booking &b)
+                                         {
+                                             return b.getRoomNumber() == room.getRoomNumber() &&
+                                                    b.getCheckInDate() <= today &&
+                                                    b.getCheckOutDate() > today;
+                                         });
+
         if (room.getAvailability() != shouldBeAvailable)
         {
-            throw runtime_error("Data corruption: Room " + to_string(room.getRoomNumber()) +
-                                " availability flag is incorrect");
+            cout << "Fixing room " << room.getRoomNumber() << " availability flag" << endl;
+            room.setAvailability(shouldBeAvailable);
         }
     }
 }
@@ -143,14 +152,18 @@ void Hotel::updateRoomAvailability(int roomNumber)
     }
 }
 
+// REPLACE the hasBookingOverlap method in hotel.cpp with this:
+
 bool Hotel::hasBookingOverlap(int roomNumber, const Date &checkIn, const Date &checkOut) const
 {
     for (const auto &booking : bookings)
     {
         if (booking.getRoomNumber() == roomNumber)
         {
-            // Check if the new booking overlaps with existing booking
-            bool overlap = !(checkOut <= booking.getCheckInDate() || checkIn >= booking.getCheckOutDate());
+            // Correct overlap detection: new booking starts before existing booking ends
+            // AND new booking ends after existing booking starts
+            bool overlap = (checkIn < booking.getCheckOutDate()) &&
+                           (checkOut > booking.getCheckInDate());
             if (overlap)
             {
                 return true;
@@ -229,14 +242,26 @@ bool Hotel::customerExists(const string &cnic) const
                   { return c.getCnic() == cnic; });
 }
 
+// REPLACE the isRoomAvailable method in hotel.cpp with this:
+
 bool Hotel::isRoomAvailable(int roomNum) const
 {
     for (const Room &r : rooms)
     {
         if (r.getRoomNumber() == roomNum)
         {
-            // Check if there are any overlapping bookings
-            return !hasBookingOverlap(roomNum, Date(), Date::maxDate());
+            // Check both the availability flag AND actual booking conflicts
+            // This ensures consistency between the flag and actual bookings
+            Date today = Date::currentDate();
+            bool hasCurrentBooking = any_of(bookings.begin(), bookings.end(),
+                                            [roomNum, today](const Booking &b)
+                                            {
+                                                return b.getRoomNumber() == roomNum &&
+                                                       b.getCheckInDate() <= today &&
+                                                       b.getCheckOutDate() > today;
+                                            });
+
+            return r.getAvailability() && !hasCurrentBooking;
         }
     }
     return false;
@@ -301,6 +326,10 @@ vector<Customer> Hotel::findCustomersByName(const string &name) const
 
 void Hotel::saveData()
 {
+    // Validate data consistency before saving
+    validateDataConsistency();
+
+    // Rest of the existing saveData method remains the same...
     auto saveVector = [](const auto &vec, const string &filename)
     {
         ofstream out(filename, ios::binary);
@@ -332,6 +361,8 @@ void Hotel::saveData()
     }
 }
 
+// REPLACE the entire loadData() method in hotel.cpp with this:
+
 void Hotel::loadData()
 {
     // Clear existing data
@@ -340,19 +371,82 @@ void Hotel::loadData()
     bookings.clear();
     nextBookingID = 1;
 
-    // Simple file existence check - if files don't exist, start fresh (which is fine)
-    ifstream roomIn("Rooms.dat", ios::binary);
-    if (!roomIn) {
-        cout << "No previous room data found. Starting fresh." << endl;
-        return;
-    }
+    auto loadVector = [](auto &vec, const string &filename)
+    {
+        ifstream in(filename, ios::binary);
+        if (!in)
+        {
+            cout << "No previous " << filename << " data found." << endl;
+            return;
+        }
 
-    // If we reach here, files exist but we'll be cautious
-    cout << "Previous data found but appears corrupted. Starting with fresh data." << endl;
-    
-    // Don't actually load the corrupted data
-    rooms.clear();
-    customers.clear();
-    bookings.clear();
-    nextBookingID = 1;
+        try
+        {
+            size_t count;
+            in.read(reinterpret_cast<char *>(&count), sizeof(count));
+
+            if (!in)
+            {
+                throw runtime_error("Failed to read count from " + filename);
+            }
+
+            vec.resize(count);
+            for (auto &item : vec)
+            {
+                item.read_from_file(in);
+                if (!in)
+                {
+                    throw runtime_error("Error reading item from " + filename);
+                }
+            }
+
+            cout << "Loaded " << count << " items from " << filename << endl;
+        }
+        catch (const exception &e)
+        {
+            cerr << "Error loading " << filename << ": " << e.what() << endl;
+            vec.clear(); // Clear partially loaded data
+        }
+    };
+
+    try
+    {
+        loadVector(rooms, "Rooms.dat");
+        loadVector(customers, "Customers.dat");
+        loadVector(bookings, "Bookings.dat");
+
+        // Find the maximum booking ID for nextBookingID
+        for (const auto &booking : bookings)
+        {
+            if (booking.getBookingID() >= nextBookingID)
+            {
+                nextBookingID = booking.getBookingID() + 1;
+            }
+        }
+
+        // Update room availability based on current bookings
+        Date today = Date::currentDate();
+        for (auto &room : rooms)
+        {
+            bool hasActiveBooking = any_of(bookings.begin(), bookings.end(),
+                                           [&room, today](const Booking &b)
+                                           {
+                                               return b.getRoomNumber() == room.getRoomNumber() &&
+                                                      b.getCheckInDate() <= today &&
+                                                      b.getCheckOutDate() > today;
+                                           });
+            room.setAvailability(!hasActiveBooking);
+        }
+
+        cout << "Data loaded successfully! Next Booking ID: " << nextBookingID << endl;
+    }
+    catch (const exception &e)
+    {
+        cerr << "Critical error during data loading: " << e.what() << endl;
+        // Ensure clean state on failure
+        rooms.clear();
+        customers.clear();
+        bookings.clear();
+        nextBookingID = 1;
+    }
 }

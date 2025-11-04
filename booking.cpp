@@ -54,6 +54,11 @@ double Booking::calculateTotalAmount() const
 
 void Booking::makePayment(double amount)
 {
+    Date today = Date::currentDate();
+    if (checkOutDate <= today)
+    {
+        throw invalid_argument("Cannot make payment for past booking");
+    }
     if (checkInDate.daysBetween(checkOutDate) <= 0)
     {
         throw invalid_argument("Invalid booking duration");

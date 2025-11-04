@@ -86,10 +86,13 @@ int main()
     Hotel myHotel;
     int choice;
 
-    try {
+    try
+    {
         myHotel.loadData(); // Load at startup
         cout << "Data loaded successfully!" << endl;
-    } catch (const exception& e) {
+    }
+    catch (const exception &e)
+    {
         cout << "Note: Could not load previous data: " << e.what() << endl;
         cout << "Starting with fresh data..." << endl;
     }
@@ -98,10 +101,13 @@ int main()
     {
         clearScreen();
         showMenu();
-        
-        try {
+
+        try
+        {
             choice = getValidatedInt("");
-        } catch (...) {
+        }
+        catch (...)
+        {
             cout << "Error reading input. Please try again." << endl;
             cin.clear();
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
@@ -164,10 +170,13 @@ int main()
             getline(cin, cnic);
             cout << "Enter Customer Phone No: ";
             getline(cin, phone);
-            
-            if (name.empty() || cnic.empty() || phone.empty()) {
+
+            if (name.empty() || cnic.empty() || phone.empty())
+            {
                 cout << "Error: All fields are required!" << endl;
-            } else {
+            }
+            else
+            {
                 myHotel.addCustomer(Customer(name, cnic, phone));
             }
             break;
@@ -223,20 +232,40 @@ int main()
         case 6:
             myHotel.showAllBookings();
             break;
-        case 7:
-            try {
+        case 7: // Save Data
+            try
+            {
                 myHotel.saveData();
                 cout << "Data saved successfully!\n";
-            } catch (const exception& e) {
+            }
+            catch (const exception &e)
+            {
                 cout << "Error saving data: " << e.what() << endl;
+                cout << "Some data may not have been saved. Please try again." << endl;
             }
             break;
-        case 8:
-            try {
-                myHotel.loadData();
-                cout << "Data loaded successfully!\n";
-            } catch (const exception& e) {
+        case 8: // Load Data
+            try
+            {
+                char confirm;
+                cout << "Warning: This will replace current data. Continue? (y/n): ";
+                cin >> confirm;
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+                if (confirm == 'y' || confirm == 'Y')
+                {
+                    myHotel.loadData();
+                    cout << "Data loaded successfully!\n";
+                }
+                else
+                {
+                    cout << "Load cancelled.\n";
+                }
+            }
+            catch (const exception &e)
+            {
                 cout << "Error loading data: " << e.what() << endl;
+                cout << "Starting with fresh data..." << endl;
             }
             break;
         case 9:
@@ -247,10 +276,13 @@ int main()
         }
         case 0:
             cout << "Saving data before exiting...\n";
-            try {
+            try
+            {
                 myHotel.saveData();
                 cout << "Data saved successfully!\n";
-            } catch (const exception& e) {
+            }
+            catch (const exception &e)
+            {
                 cout << "Warning: " << e.what() << endl;
             }
             cout << "Goodbye!\n";
