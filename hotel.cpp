@@ -118,9 +118,30 @@ void Hotel::bookRoom(int roomNumber, const string &customerCNIC, const Date &che
 
     // Create new booking
     bookings.emplace_back(nextBookingID++, roomNumber, customerCNIC, checkIn, checkOut);
+    bookings.back().setNightlyRate(roomPtr->getPrice());
     roomPtr->setAvailability(false);
     cout << "Room booked successfully. Booking ID: " << (nextBookingID - 1) << endl;
     saveData();
+}
+
+void Hotel::updateRoomAvailability(int roomNumber)
+{
+    auto roomIt = find_if(rooms.begin(), rooms.end(),
+                          [roomNumber](const Room &r)
+                          { return r.getRoomNumber() == roomNumber; });
+
+    if (roomIt != rooms.end())
+    {
+        Date today = Date::currentDate();
+        bool hasActiveBooking = any_of(bookings.begin(), bookings.end(),
+                                       [roomNumber, today](const Booking &b)
+                                       {
+                                           return b.getRoomNumber() == roomNumber &&
+                                                  b.getCheckInDate() <= today &&
+                                                  b.getCheckOutDate() > today;
+                                       });
+        roomIt->setAvailability(!hasActiveBooking);
+    }
 }
 
 bool Hotel::hasBookingOverlap(int roomNumber, const Date &checkIn, const Date &checkOut) const

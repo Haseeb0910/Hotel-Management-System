@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <memory>
 #include <algorithm>
 #include "customer.h"
 using namespace std;
@@ -56,23 +57,20 @@ void Customer::write_to_file(ofstream &out) const
 
 void Customer::read_from_file(ifstream &in)
 {
-   size_t len1, len2, len3;
-   in.read(reinterpret_cast<char *>(&len1), sizeof(len1));
-   char *buffer1 = new char[len1 + 1];
-   in.read(buffer1, len1);
-   buffer1[len1] = '\0';
-   name = string(buffer1);
-   delete[] buffer1;
-   in.read(reinterpret_cast<char *>(&len2), sizeof(len2));
-   char *buffer2 = new char[len2 + 1];
-   in.read(buffer2, len2);
-   buffer2[len2] = '\0';
-   cnic = string(buffer2);
-   delete[] buffer2;
-   in.read(reinterpret_cast<char *>(&len3), sizeof(len3));
-   char *buffer3 = new char[len3 + 1];
-   in.read(buffer3, len3);
-   buffer3[len3] = '\0';
-   phone_no = string(buffer3);
-   delete[] buffer3;
+   size_t len;
+   in.read(reinterpret_cast<char *>(&len), sizeof(len));
+   unique_ptr<char[]> buffer1(new char[len + 1]);
+   in.read(buffer1.get() , len);
+   buffer1[len] = '\0';
+   name = string(buffer1.get());
+   in.read(reinterpret_cast<char *>(&len), sizeof(len));
+   unique_ptr<char[]> buffer2(new char[len + 1]);
+   in.read(buffer2.get(), len);
+   buffer2[len] = '\0';
+   cnic = string(buffer2.get());
+   in.read(reinterpret_cast<char *>(&len), sizeof(len));
+   unique_ptr<char[]> buffer3(new char[len + 1]);
+   in.read(buffer3.get(), len);
+   buffer3[len] = '\0';
+   phone_no = string(buffer3.get());
 }

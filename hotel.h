@@ -24,6 +24,7 @@ public:
     void addCustomer(const Customer &customer);
     void bookRoom(int roomNumber, const string &customerCNIC,const Date &checkIn, const Date &checkOut);
 
+    void updateRoomAvailability(int roomNumber);
     bool hasBookingOverlap(int roomNumber, const Date &checkIn, const Date &checkOut) const;
 
     void showAllRooms() const;
