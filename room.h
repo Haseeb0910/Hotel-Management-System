@@ -24,7 +24,7 @@ class Room
     void setPrice(double p);
     double getPrice() const;
     string getTypeString() const;
-    RoomType stringToType(const string &typeStr);
+    static RoomType stringToType(const string &typeStr);
 
     string toCSV() const;
     void fromCSV(const string& line);

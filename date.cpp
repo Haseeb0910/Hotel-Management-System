@@ -96,43 +96,6 @@ bool Date::operator!=(const Date &other) const
     return !(*this == other);
 }
 
-void Date::validateDate() const
-{
-    if (year < 1800 || year > 2500)
-    {
-        throw invalid_argument("Year must be between 1800 and 2500");
-    }
-    if (month < 1 || month > 12)
-    {
-        throw invalid_argument("Month must be between 1 and 12");
-    }
-    if (day < 1 || day > daysInMonth())
-    {
-        throw invalid_argument("Day " + to_string(day) + " is invalid for month " + to_string(month) + " in year " + to_string(year));
-    }
-}
-
-bool Date::isLeapYear() const
-{
-    return (year % 400 == 0) || (year % 100 != 0 && year % 4 == 0);
-}
-
-int Date::daysInMonth() const
-{
-    switch (month)
-    {
-    case 2:
-        return isLeapYear() ? 29 : 28;
-    case 4:
-    case 6:
-    case 9:
-    case 11:
-        return 30;
-    default:
-        return 31;
-    }
-}
-
 string Date::toString() const
 {
     ostringstream oss;

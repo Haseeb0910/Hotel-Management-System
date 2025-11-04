@@ -6,9 +6,17 @@
 
 using namespace std;
 
-Booking::Booking() : bookingID(0), roomNumber(0), customerCNIC(""), checkInDate(""), checkOutDate(""), paymentStatus(PaymentStatus::PENDING), amountPaid(0.0), nightlyRate(0.0) {}
+Booking::Booking() : bookingID(0), roomNumber(0), customerCNIC(""),
+                     checkInDate(), checkOutDate(), // Remove empty strings
+                     paymentStatus(PaymentStatus::PENDING), amountPaid(0.0), nightlyRate(0.0)
+{
+}
 
-Booking::Booking(int id, int room, string cnic, Date in, Date out) : bookingID(id), roomNumber(room), customerCNIC(cnic), checkInDate(in), checkOutDate(out), paymentStatus(PaymentStatus::PENDING), amountPaid(0.0), nightlyRate(0.0) {}
+Booking::Booking(int id, int room, string cnic, Date in, Date out) : bookingID(id), roomNumber(room), customerCNIC(cnic),
+                                                                     checkInDate(in), checkOutDate(out), // Use the Date objects directly
+                                                                     paymentStatus(PaymentStatus::PENDING), amountPaid(0.0), nightlyRate(0.0)
+{
+}
 
 void Booking::displayBookingInfo() const
 {
@@ -57,12 +65,15 @@ void Booking::makePayment(double amount)
     }
 }
 
-void Booking::refundPayment(double amount) {
-    if (amount <= 0 || amount > amountPaid) {
+void Booking::refundPayment(double amount)
+{
+    if (amount <= 0 || amount > amountPaid)
+    {
         throw invalid_argument("Invalid refund amount");
     }
     amountPaid -= amount;
-    if (amountPaid == 0) {
+    if (amountPaid == 0)
+    {
         paymentStatus = PaymentStatus::REFUNDED;
     }
 }
